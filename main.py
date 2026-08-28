@@ -41,6 +41,14 @@ pantalla_juego = pygame.Surface((ANCHO_PANTALLA, ALTO_PANTALLA))
 pygame.display.set_caption("Dino Rush: Extinction Escape")
 reloj = pygame.time.Clock()
 
+# ---------- Carga de Música ----------
+try:
+    pygame.mixer.music.load("assets/sprites/Fish Fellas Assetpack/Soundtracks/Fish_Fellas_Soundtrack.mp3")
+    pygame.mixer.music.set_volume(0.4)
+    pygame.mixer.music.play(-1) # -1 para loop infinito
+except Exception as e:
+    print(f"Error cargando soundtrack: {e}")
+
 # ---------- Superficie para Fog Rojo (Vignette) ----------
 
 # Cargando sprites de "Fish Fellas Assetpack"
