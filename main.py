@@ -816,8 +816,8 @@ while juego_activo:
         pantalla_juego.blit(sombra_t, (tx + 2, 22))
         pantalla_juego.blit(titulo_t,  (tx,     20))
         
-        # Separador decorativo central
-        pygame.draw.line(pantalla_juego, (255, 255, 255, 180), (ANCHO_PANTALLA//2, 70), (ANCHO_PANTALLA//2, ALTO_PANTALLA - 40), 2)
+        # # Separador decorativo central
+        # pygame.draw.line(pantalla_juego, (255, 255, 255, 180), (ANCHO_PANTALLA//2, 70), (ANCHO_PANTALLA//2, ALTO_PANTALLA - 40), 2)
         
         # Subtitulos en cada mitad
         sub_azul  = fuente_chica.render("< Pez Azul",   True, (150, 200, 255))
