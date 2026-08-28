@@ -28,7 +28,7 @@ The primary value of this project is serving as a comprehensive educational mile
 2. Clone or download this repository to your local machine.
 3. Open a terminal or command prompt and navigate to the project directory:
    ```bash
-   cd path/to/DinoRush-main
+   cd path/to/FishyJump
    ```
 4. Install the required dependencies (Pygame-CE):
    ```bash
@@ -117,7 +117,7 @@ El valor principal de este proyecto es servir como un hito educativo integral pa
 2. Clona o descarga este repositorio en tu máquina local.
 3. Abre una terminal y navega al directorio del proyecto:
    ```bash
-   cd ruta/a/DinoRush-main
+   cd path/to/FishyJump
    ```
 4. Instala las dependencias necesarias (Pygame-CE):
    ```bash
