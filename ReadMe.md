@@ -49,8 +49,6 @@ python main.py
 ## Project Structure
 * `main.py`: The main game loop, containing all mechanics, drawing routines, and state logic.
 * `scrach.py`: The original baseline code used as a starting point for educational purposes.
-* `prompts_utilizados.md`: Documentation of the Socratic method used to develop the game step-by-step.
-* `DOCUMENTACION.md`: Detailed technical documentation and development roadmap.
 * `assets/`: Contains all sprites, UI elements, fonts, and backgrounds (e.g., Fish Fellas Assetpack).
 
 ## Configuration
@@ -138,8 +136,6 @@ python main.py
 ## Estructura del Proyecto
 * `main.py`: El bucle principal del juego, que contiene todas las mecánicas, rutinas de dibujado y lógica de estados.
 * `scrach.py`: El código base original utilizado como punto de partida con fines educativos.
-* `prompts_utilizados.md`: Documentación del método socrático utilizado para desarrollar el juego paso a paso.
-* `DOCUMENTACION.md`: Documentación técnica detallada y hoja de ruta de desarrollo.
 * `assets/`: Contiene todos los sprites, elementos de UI, fuentes y fondos.
 
 ## Configuración
