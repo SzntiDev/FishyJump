@@ -86,8 +86,29 @@ try:
 except Exception:
     sprites_sangre = []
 
+# Cargar VFX de correr y saltar
+try:
+    _frames_run = cargar_spritesheet("assets/sprites/Fish Fellas Assetpack/vfx/SmokeFX Lite SpriteSheet 1A-7.png", 64, 64, 9, 1)
+    # Escalar particulas x1.5 (96x96)
+    vfx_run = [pygame.transform.scale(f, (96, 96)) for f in _frames_run]
+except Exception as e:
+    print("Error cargando VFX Run:", e)
+    vfx_run = []
+
+try:
+    _frames_jump = cargar_spritesheet("assets/sprites/Fish Fellas Assetpack/vfx/SmokeFX Lite SpriteSheet 4A-3.png", 64, 61, 63, 1)
+    # Escalar particulas x1.5 (96x91)
+    vfx_jump = [pygame.transform.scale(f, (96, 91)) for f in _frames_jump]
+except Exception as e:
+    print("Error cargando VFX Jump:", e)
+    vfx_jump = []
+
+lista_vfx = [] # Lista para almacenar partículas activas
+ultimo_paso = -1
+
 # ---------- Variables de Estado de la Partida ----------
-estado_partida = "MENU_PRINCIPAL" # "MENU_PRINCIPAL", "INICIO", "JUGANDO", "GAME_OVER"
+estado_partida = "MENU_PRINCIPAL" # "MENU_PRINCIPAL", "INICIO", "JUGANDO", "GAME_OVER", "PAUSA", "AJUSTES"
+estado_previo_ajustes = "MENU_PRINCIPAL"
 estado_actual = "IDLE" # Animación del dinosaurio: "IDLE", "RUN", "JUMP"
 frame_actual = 0
 velocidad_animacion = 0.15 # Qué tan rápido cambia el frame
@@ -156,49 +177,45 @@ except Exception:
 
 try:
     img_banner = pygame.image.load("assets/sprites/Fish Fellas Assetpack/Sprites/Other/title_banner.png").convert_alpha()
-    # Banner 720x194 -> encaja perfectamente en pantalla de 800px
-    img_banner = pygame.transform.scale(img_banner, (720, 194))
+    img_banner = pygame.transform.scale(img_banner, (300, 80))
     
-    # Botones 300x75 originales -> 210x52 para que sean un poco mas grandes
-    BTN_W, BTN_H = 210, 52
-    img_btn_jugar_base = pygame.image.load("assets/sprites/Fish Fellas Assetpack/Sprites/UI/UI-jugar.png").convert_alpha()
-    img_btn_jugar_base = pygame.transform.scale(img_btn_jugar_base, (BTN_W, BTN_H))
-    
-    img_btn_salir_base = pygame.image.load("assets/sprites/Fish Fellas Assetpack/Sprites/UI/UI-salir.png").convert_alpha()
-    img_btn_salir_base = pygame.transform.scale(img_btn_salir_base, (BTN_W, BTN_H))
-    
-    img_btn_reset_base = pygame.image.load("assets/sprites/Fish Fellas Assetpack/Sprites/UI/UI-reset.png").convert_alpha()
-    img_btn_reset_base = pygame.transform.scale(img_btn_reset_base, (BTN_W, BTN_H))
-    
-    # Versiones hover: 10% mas grandes
-    BTN_WH, BTN_HH = int(BTN_W * 1.1), int(BTN_H * 1.1)
-    img_btn_jugar_hover = pygame.transform.scale(img_btn_jugar_base, (BTN_WH, BTN_HH))
-    img_btn_salir_hover  = pygame.transform.scale(img_btn_salir_base,  (BTN_WH, BTN_HH))
-    img_btn_reset_hover  = pygame.transform.scale(img_btn_reset_base,  (BTN_WH, BTN_HH))
-    
-    # Rectangulos de colision (centrados: jugar izq, salir der, separados por 20px)
-    ESPACIO = 20
-    total_w = BTN_W * 2 + ESPACIO
-    x_inicio = (ANCHO_PANTALLA - total_w) // 2
-    BTN_Y = 340  # posicion Y de los botones en el menu
-    
-    rect_btn_jugar      = pygame.Rect(x_inicio,                BTN_Y, BTN_W, BTN_H)
-    rect_btn_salir_menu = pygame.Rect(x_inicio + BTN_W + ESPACIO, BTN_Y, BTN_W, BTN_H)
-    
-    rect_btn_reset   = pygame.Rect(x_inicio,                BTN_Y, BTN_W, BTN_H)
-    rect_btn_salir_go = pygame.Rect(x_inicio + BTN_W + ESPACIO, BTN_Y, BTN_W, BTN_H)
-    
-    # Alias conveniente para el dibujado
-    img_btn_jugar  = img_btn_jugar_base
-    img_btn_salir  = img_btn_salir_base
-    img_btn_reset  = img_btn_reset_base
+    # --- Funciones Auxiliares para Menús de Texto ---
+    def obtener_rects_menu(opciones, y_inicial=220, espaciado=50):
+        rects = {}
+        for i, opc in enumerate(opciones):
+            texto = fuente_chica.render(opc, True, (255, 255, 255))
+            r = texto.get_rect(center=(175, y_inicial + i * espaciado))
+            r.inflate_ip(30, 20) # Area de click más grande
+            rects[opc] = r
+        return rects
+
+    def dibujar_panel_menu(titulo, opciones, rects_opciones, y_inicial=220, incluir_banner=False):
+        overlay = pygame.Surface((350, ALTO_PANTALLA), pygame.SRCALPHA)
+        overlay.fill((0, 40, 120, 180)) # Rectángulo azul semitransparente
+        pantalla_juego.blit(overlay, (0, 0))
+        
+        if incluir_banner and img_banner:
+            x_b = (350 - img_banner.get_width()) // 2
+            pantalla_juego.blit(img_banner, (x_b, 40))
+        elif titulo:
+            sombra = fuente_grande.render(titulo, True, (0, 0, 50))
+            txt_t = fuente_grande.render(titulo, True, (255, 255, 255))
+            rect_t = txt_t.get_rect(center=(175, 100))
+            pantalla_juego.blit(sombra, (rect_t.x + 2, rect_t.y + 2))
+            pantalla_juego.blit(txt_t, rect_t)
+            
+        mx, my = pygame.mouse.get_pos()
+        for opc in opciones:
+            rect = rects_opciones[opc]
+            color = (255, 255, 0) if rect.collidepoint(mx, my) else (255, 255, 255)
+            txt_opc = fuente_chica.render(opc, True, color)
+            pantalla_juego.blit(txt_opc, txt_opc.get_rect(center=rect.center))
+
 except Exception as e:
     print(f"Error cargando UI botones/banner: {e}")
-    img_banner = img_btn_jugar = img_btn_salir = img_btn_reset = None
-    img_btn_jugar_base = img_btn_salir_base = img_btn_reset_base = None
-    img_btn_jugar_hover = img_btn_salir_hover = img_btn_reset_hover = None
-    BTN_W, BTN_H, BTN_WH, BTN_HH = 180, 45, 198, 50
-    rect_btn_jugar = rect_btn_salir_menu = rect_btn_reset = rect_btn_salir_go = pygame.Rect(0, 0, 0, 0)
+    img_banner = None
+    def obtener_rects_menu(*args, **kwargs): return {}
+    def dibujar_panel_menu(*args, **kwargs): pass
 
 # Placeholders de pantallas (reemplaza None con tu imagen cargada)
 img_pantalla_inicio = None    # [PLACEHOLDER INICIO]
@@ -221,7 +238,7 @@ lista_estrellas = [] # {'x', 'base_y', 'tipo', 'frame_float'}
 
 velocidad_base_enemigo = 12 # [MODIFICAR AQUÍ] Para hacer el juego más rápido o lento en general
 
-distancia_restante = 10.0 # 1 km recorrido
+distancia_restante = 1.0 # 1 km recorrido
 
 # ---------- Variables de Física ----------
 suelo_y = ALTO_PANTALLA - 150
@@ -386,24 +403,45 @@ while juego_activo:
             juego_activo = False
             
         # Selección de personaje y botones con el mouse
-        if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+        if evento.type == pygame.MOUSEBUTTONDOWN:
             mx, my = evento.pos
             if estado_partida == "MENU_PRINCIPAL":
-                if rect_btn_jugar.collidepoint(mx, my):
+                rects = obtener_rects_menu(["Comenzar Partida", "Ajustes"], y_inicial=240)
+                if rects["Comenzar Partida"].collidepoint(mx, my):
                     estado_partida = "INICIO"
-                elif rect_btn_salir_menu.collidepoint(mx, my):
-                    pygame.quit()
-                    sys.exit()
+                elif rects["Ajustes"].collidepoint(mx, my):
+                    estado_partida = "AJUSTES"
+                    estado_previo_ajustes = "MENU_PRINCIPAL"
+            elif estado_partida == "AJUSTES":
+                rects = obtener_rects_menu(["Volumen", "Dificultad", "Cambiar Personaje", "Volver"], y_inicial=200)
+                if rects["Cambiar Personaje"].collidepoint(mx, my):
+                    estado_partida = "INICIO"
+                elif rects["Volver"].collidepoint(mx, my):
+                    estado_partida = estado_previo_ajustes
+            elif estado_partida == "PAUSA":
+                rects = obtener_rects_menu(["Continuar", "Ajustes", "Menú Principal"], y_inicial=200)
+                if rects["Continuar"].collidepoint(mx, my):
+                    estado_partida = "JUGANDO"
+                elif rects["Ajustes"].collidepoint(mx, my):
+                    estado_partida = "AJUSTES"
+                    estado_previo_ajustes = "PAUSA"
+                elif rects["Menú Principal"].collidepoint(mx, my):
+                    estado_partida = "MENU_PRINCIPAL"
             elif estado_partida == "INICIO":
                 if mx < ANCHO_PANTALLA // 2:
                     seleccionar_personaje("azul")
                 else:
                     seleccionar_personaje("verde")
-                estado_partida = "JUGANDO"
-                estado_actual = "RUN"
-                frame_actual = 0
-            elif estado_partida == "GAME_OVER":
-                if rect_btn_reset.collidepoint(mx, my):
+                
+                if estado_previo_ajustes == "PAUSA":
+                    estado_partida = "PAUSA"
+                else:
+                    estado_partida = "JUGANDO"
+                    estado_actual = "RUN"
+                    frame_actual = 0
+            elif estado_partida in ("GAME_OVER", "VICTORIA"):
+                rects = obtener_rects_menu(["Reintentar", "Menú Principal"], y_inicial=250)
+                if rects["Reintentar"].collidepoint(mx, my):
                     estado_partida = "JUGANDO"
                     estado_actual = "RUN"
                     personaje_x = 100
@@ -412,7 +450,7 @@ while juego_activo:
                     spawn_enemigo()
                     en_peligro = False
                     vidas = 5
-                    distancia_restante = 10.0
+                    distancia_restante = 1.0
                     saltos_extra = 5
                     distancia_recorrida_salto = 0.0
                     ha_hecho_doble_salto = False
@@ -420,14 +458,15 @@ while juego_activo:
                     lista_estrellas.clear()
                     velocidad_enemigo = velocidad_base_enemigo
                     casa_scroll_x = float(ANCHO_PANTALLA + 800)
-                elif rect_btn_salir_go.collidepoint(mx, my):
-                    pygame.quit()
-                    sys.exit()
+                elif rects["Menú Principal"].collidepoint(mx, my):
+                    estado_partida = "MENU_PRINCIPAL"
 
         # Si el jugador presiona una tecla
         if evento.type == pygame.KEYDOWN:
             if estado_partida == "JUGANDO":
-                if evento.key == pygame.K_SPACE:
+                if evento.key == pygame.K_ESCAPE:
+                    estado_partida = "PAUSA"
+                elif evento.key == pygame.K_SPACE:
                     if personaje_y >= suelo_y:
                         # Salto normal
                         velocidad_y = -16 # [MODIFICAR AQUÍ] Fuerza del salto (número más negativo = salta más alto)
@@ -479,6 +518,15 @@ while juego_activo:
             if estado_actual == "JUMP": 
                 estado_actual = "RUN"
                 frame_actual = 0
+                if vfx_jump:
+                    lista_vfx.append({
+                        'x': personaje_x + 72 - 48, # Centrado en el personaje (96/2=48)
+                        'y': suelo_y + 96 - 91, # A ras del suelo con el nuevo alto de 91
+                        'frames': vfx_jump,
+                        'frame_actual': 0.0,
+                        'velocidad_anim': 0.5,
+                        'tipo': 'jump'
+                    })
 
     if estado_partida == "JUGANDO":
         dist_step = 0.03 / FPS
@@ -666,6 +714,18 @@ while juego_activo:
         # Avanzamos la animación
         if estado_actual == "RUN":
             frame_actual += velocidad_animacion_run
+            paso_actual = int(frame_actual)
+            if paso_actual in (0, 3) and paso_actual != ultimo_paso:
+                ultimo_paso = paso_actual
+                if vfx_run and estado_partida in ("JUGANDO", "LLEGADA"):
+                    lista_vfx.append({
+                        'x': personaje_x + 72 - 48 - 15, # Atrás del personaje ajustado a escala
+                        'y': suelo_y + 96 - 96,
+                        'frames': vfx_run,
+                        'frame_actual': 0.0,
+                        'velocidad_anim': 0.4,
+                        'tipo': 'run'
+                    })
         else:
             frame_actual += velocidad_animacion
         if frame_actual >= len(lista_sprites):
@@ -693,6 +753,17 @@ while juego_activo:
         casa_draw_x = int(casa_scroll_x)
         casa_draw_y = suelo_y + 90 - img_casatb.get_height() + 20  # +20 para conectar con el suelo
         pantalla_juego.blit(img_casatb, (casa_draw_x, casa_draw_y))
+
+    # Actualizar y dibujar VFX
+    vfx_activos = []
+    for vfx in lista_vfx:
+        vfx['frame_actual'] += vfx['velocidad_anim']
+        if vfx['frame_actual'] < len(vfx['frames']):
+            if estado_partida == "JUGANDO":
+                vfx['x'] -= velocidad_enemigo
+            pantalla_juego.blit(vfx['frames'][int(vfx['frame_actual'])], (vfx['x'], vfx['y']))
+            vfx_activos.append(vfx)
+    lista_vfx = vfx_activos
 
     # 3. Dibujar personaje
     # En VICTORIA ya no se dibuja porque entró a la casa
@@ -771,115 +842,57 @@ while juego_activo:
         pantalla_juego.blit(txt_pts,  (x_pts, y_txt))
 
     if estado_partida == "MENU_PRINCIPAL":
-        # Overlay semi-transparente oscuro para que el menu resalte sobre el fondo
-        overlay = pygame.Surface((ANCHO_PANTALLA, ALTO_PANTALLA), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 140))
-        pantalla_juego.blit(overlay, (0, 0))
-        
-        if img_banner:
-            x_b = (ANCHO_PANTALLA - img_banner.get_width()) // 2
-            pantalla_juego.blit(img_banner, (x_b, 90))
-        
-        if img_btn_jugar_base and img_btn_salir_base:
-            mx_h, my_h = pygame.mouse.get_pos()
-            # Boton Jugar con hover
-            if rect_btn_jugar.collidepoint(mx_h, my_h) and img_btn_jugar_hover:
-                hx = rect_btn_jugar.centerx - BTN_WH // 2
-                hy = rect_btn_jugar.centery - BTN_HH // 2
-                pantalla_juego.blit(img_btn_jugar_hover, (hx, hy))
-            else:
-                pantalla_juego.blit(img_btn_jugar_base, (rect_btn_jugar.x, rect_btn_jugar.y))
-            # Boton Salir con hover
-            if rect_btn_salir_menu.collidepoint(mx_h, my_h) and img_btn_salir_hover:
-                hx = rect_btn_salir_menu.centerx - BTN_WH // 2
-                hy = rect_btn_salir_menu.centery - BTN_HH // 2
-                pantalla_juego.blit(img_btn_salir_hover, (hx, hy))
-            else:
-                pantalla_juego.blit(img_btn_salir_base, (rect_btn_salir_menu.x, rect_btn_salir_menu.y))
+        opciones = ["Comenzar Partida", "Ajustes"]
+        rects = obtener_rects_menu(opciones, y_inicial=260)
+        dibujar_panel_menu("", opciones, rects, y_inicial=260, incluir_banner=True)
+
+    elif estado_partida == "AJUSTES":
+        opciones = ["Volumen", "Dificultad", "Cambiar Personaje", "Volver"]
+        rects = obtener_rects_menu(opciones, y_inicial=200)
+        dibujar_panel_menu("AJUSTES", opciones, rects, y_inicial=200)
+
+    elif estado_partida == "PAUSA":
+        opciones = ["Continuar", "Ajustes", "Menú Principal"]
+        rects = obtener_rects_menu(opciones, y_inicial=200)
+        dibujar_panel_menu("PAUSADO", opciones, rects, y_inicial=200)
+
+    elif estado_partida == "GAME_OVER":
+        opciones = ["Reintentar", "Menú Principal"]
+        rects = obtener_rects_menu(opciones, y_inicial=250)
+        dibujar_panel_menu("GAME OVER", opciones, rects, y_inicial=250)
+
+    elif estado_partida == "VICTORIA":
+        opciones = ["Reintentar", "Menú Principal"]
+        rects = obtener_rects_menu(opciones, y_inicial=250)
+        dibujar_panel_menu("¡VICTORIA!", opciones, rects, y_inicial=250)
 
     elif estado_partida == "INICIO":
-        # Overlay con gradiente oscuro arriba
-        overlay_sel = pygame.Surface((ANCHO_PANTALLA, ALTO_PANTALLA), pygame.SRCALPHA)
-        overlay_sel.fill((0, 0, 0, 120))
-        pantalla_juego.blit(overlay_sel, (0, 0))
-        
-        if img_chselect:
-            # Mostrar a tamaño 1x (no escalar, ya tiene buen tamaño original)
-            x_sel = (ANCHO_PANTALLA - img_chselect.get_width()) // 2
-            y_sel = (ALTO_PANTALLA - img_chselect.get_height()) // 2 + 20
-            pantalla_juego.blit(img_chselect, (x_sel, y_sel))
-        
-        # Titulo con sombra
-        sombra_t = fuente_grande.render("ELIGE TU PERSONAJE", True, (0, 0, 0))
-        titulo_t  = fuente_grande.render("ELIGE TU PERSONAJE", True, (255, 230, 100))
-        tx = ANCHO_PANTALLA // 2 - titulo_t.get_width() // 2
-        pantalla_juego.blit(sombra_t, (tx + 2, 22))
-        pantalla_juego.blit(titulo_t,  (tx,     20))
-        
-        # # Separador decorativo central
-        # pygame.draw.line(pantalla_juego, (255, 255, 255, 180), (ANCHO_PANTALLA//2, 70), (ANCHO_PANTALLA//2, ALTO_PANTALLA - 40), 2)
-        
-        # Subtitulos en cada mitad
-        sub_azul  = fuente_chica.render("< Pez Azul",   True, (150, 200, 255))
-        sub_verde = fuente_chica.render("Pez Verde >",   True, (100, 255, 150))
-        pantalla_juego.blit(sub_azul,  (ANCHO_PANTALLA//4  - sub_azul.get_width()//2,  ALTO_PANTALLA - 55))
-        pantalla_juego.blit(sub_verde, (3*ANCHO_PANTALLA//4 - sub_verde.get_width()//2, ALTO_PANTALLA - 55))
-        
-        hint = fuente_chica.render("Haz click para elegir", True, (200, 200, 200))
-        pantalla_juego.blit(hint, (ANCHO_PANTALLA//2 - hint.get_width()//2, ALTO_PANTALLA - 28))
-        
-    elif estado_partida == "GAME_OVER":
         overlay = pygame.Surface((ANCHO_PANTALLA, ALTO_PANTALLA), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 160))
+        overlay.fill((0, 40, 120, 180)) # Fondo azul semitransparente
         pantalla_juego.blit(overlay, (0, 0))
+
+        # Título
+        titulo = "SELECCIONA TU PERSONAJE"
+        sombra = fuente_grande.render(titulo, True, (0, 0, 50))
+        txt_t = fuente_grande.render(titulo, True, (255, 255, 255))
+        rect_t = txt_t.get_rect(center=(ANCHO_PANTALLA//2, 120))
+        pantalla_juego.blit(sombra, (rect_t.x + 2, rect_t.y + 2))
+        pantalla_juego.blit(txt_t, rect_t)
         
-        texto_go = fuente_grande.render("GAME OVER", True, (220, 50, 50))
-        # Sombra del texto
-        sombra_go = fuente_grande.render("GAME OVER", True, (80, 0, 0))
-        pantalla_juego.blit(sombra_go, (ANCHO_PANTALLA // 2 - texto_go.get_width() // 2 + 3, 123))
-        pantalla_juego.blit(texto_go, (ANCHO_PANTALLA // 2 - texto_go.get_width() // 2, 120))
+        # Efecto hover
+        mx, my = pygame.mouse.get_pos()
+        color_azul = (255, 255, 0) if mx < ANCHO_PANTALLA // 2 else (100, 200, 255)
+        color_verde = (255, 255, 0) if mx >= ANCHO_PANTALLA // 2 else (100, 255, 100)
+
+        # Personaje Azul (Izquierda)
+        txt_azul = fuente_grande.render("AZUL", True, color_azul)
+        rect_azul = txt_azul.get_rect(center=(ANCHO_PANTALLA//4, ALTO_PANTALLA//2))
+        pantalla_juego.blit(txt_azul, rect_azul)
         
-        if img_btn_reset_base and img_btn_salir_base:
-            mx_h, my_h = pygame.mouse.get_pos()
-            # Boton Reintentar con hover
-            if rect_btn_reset.collidepoint(mx_h, my_h) and img_btn_reset_hover:
-                hx = rect_btn_reset.centerx - BTN_WH // 2
-                hy = rect_btn_reset.centery - BTN_HH // 2
-                pantalla_juego.blit(img_btn_reset_hover, (hx, hy))
-            else:
-                pantalla_juego.blit(img_btn_reset_base, (rect_btn_reset.x, rect_btn_reset.y))
-            # Boton Salir con hover
-            if rect_btn_salir_go.collidepoint(mx_h, my_h) and img_btn_salir_hover:
-                hx = rect_btn_salir_go.centerx - BTN_WH // 2
-                hy = rect_btn_salir_go.centery - BTN_HH // 2
-                pantalla_juego.blit(img_btn_salir_hover, (hx, hy))
-            else:
-                pantalla_juego.blit(img_btn_salir_base, (rect_btn_salir_go.x, rect_btn_salir_go.y))
-        
-    elif estado_partida == "VICTORIA":
-        overlay = pygame.Surface((ANCHO_PANTALLA, ALTO_PANTALLA), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 160))
-        pantalla_juego.blit(overlay, (0, 0))
-        
-        texto_vic = fuente_grande.render("¡VICTORIA!", True, (255, 215, 0))
-        sombra_vic = fuente_grande.render("¡VICTORIA!", True, (100, 80, 0))
-        pantalla_juego.blit(sombra_vic, (ANCHO_PANTALLA // 2 - texto_vic.get_width() // 2 + 3, 123))
-        pantalla_juego.blit(texto_vic,  (ANCHO_PANTALLA // 2 - texto_vic.get_width() // 2, 120))
-        
-        if img_btn_reset_base and img_btn_salir_base:
-            mx_h, my_h = pygame.mouse.get_pos()
-            if rect_btn_reset.collidepoint(mx_h, my_h) and img_btn_reset_hover:
-                hx = rect_btn_reset.centerx - BTN_WH // 2
-                hy = rect_btn_reset.centery - BTN_HH // 2
-                pantalla_juego.blit(img_btn_reset_hover, (hx, hy))
-            else:
-                pantalla_juego.blit(img_btn_reset_base, (rect_btn_reset.x, rect_btn_reset.y))
-            if rect_btn_salir_go.collidepoint(mx_h, my_h) and img_btn_salir_hover:
-                hx = rect_btn_salir_go.centerx - BTN_WH // 2
-                hy = rect_btn_salir_go.centery - BTN_HH // 2
-                pantalla_juego.blit(img_btn_salir_hover, (hx, hy))
-            else:
-                pantalla_juego.blit(img_btn_salir_base, (rect_btn_salir_go.x, rect_btn_salir_go.y))
+        # Personaje Verde (Derecha)
+        txt_verde = fuente_grande.render("VERDE", True, color_verde)
+        rect_verde = txt_verde.get_rect(center=(3*ANCHO_PANTALLA//4, ALTO_PANTALLA//2))
+        pantalla_juego.blit(txt_verde, rect_verde)
 
     # --- APLICAR EFECTOS (SHAKE & FOG) A LA PANTALLA REAL ---
     dx = 0
