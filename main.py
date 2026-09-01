@@ -38,7 +38,7 @@ def cargar_spritesheet(ruta_imagen, ancho_frame, alto_frame, columnas, filas):
 pygame.init()
 pantalla = pygame.display.set_mode((ANCHO_PANTALLA, ALTO_PANTALLA))
 pantalla_juego = pygame.Surface((ANCHO_PANTALLA, ALTO_PANTALLA))
-pygame.display.set_caption("Dino Rush: Extinction Escape")
+pygame.display.set_caption("FIshyJump")
 reloj = pygame.time.Clock()
 
 # ---------- Carga de Música ----------
@@ -210,6 +210,12 @@ vidas = 5 # 5 golpes hasta morir
 en_peligro = False
 tiempo_inicio_peligro = 0
 
+# ---------- Variable de inicio de partida (para el hint de salto) ----------
+tiempo_inicio_juego = 0
+
+# ---------- Pausa ----------
+juego_pausado = False
+
 # ---------- Variables de Doble Salto (Energía) ----------
 saltos_extra = 5 # 5 saltos dobles disponibles
 distancia_recorrida_salto = 0.0 # Acumulador para recargar (cada 0.5)
@@ -221,7 +227,7 @@ lista_estrellas = [] # {'x', 'base_y', 'tipo', 'frame_float'}
 
 velocidad_base_enemigo = 12 # [MODIFICAR AQUÍ] Para hacer el juego más rápido o lento en general
 
-distancia_restante = 10.0 # 1 km recorrido
+distancia_restante = 1.0 # 1 km recorrido
 
 # ---------- Variables de Física ----------
 suelo_y = ALTO_PANTALLA - 150
@@ -402,17 +408,21 @@ while juego_activo:
                 estado_partida = "JUGANDO"
                 estado_actual = "RUN"
                 frame_actual = 0
-            elif estado_partida == "GAME_OVER":
+                tiempo_inicio_juego = pygame.time.get_ticks()
+                juego_pausado = False
+            elif estado_partida in ("GAME_OVER", "VICTORIA"):
                 if rect_btn_reset.collidepoint(mx, my):
                     estado_partida = "JUGANDO"
                     estado_actual = "RUN"
+                    tiempo_inicio_juego = pygame.time.get_ticks()
+                    juego_pausado = False
                     personaje_x = 100
                     personaje_y = suelo_y
                     velocidad_y = 0
                     spawn_enemigo()
                     en_peligro = False
                     vidas = 5
-                    distancia_restante = 10.0
+                    distancia_restante = 1.0
                     saltos_extra = 5
                     distancia_recorrida_salto = 0.0
                     ha_hecho_doble_salto = False
@@ -427,32 +437,36 @@ while juego_activo:
         # Si el jugador presiona una tecla
         if evento.type == pygame.KEYDOWN:
             if estado_partida == "JUGANDO":
-                if evento.key == pygame.K_SPACE:
-                    if personaje_y >= suelo_y:
-                        # Salto normal
-                        velocidad_y = -16 # [MODIFICAR AQUÍ] Fuerza del salto (número más negativo = salta más alto)
-                        estado_actual = "JUMP"
-                        frame_actual = 0
-                        ha_hecho_doble_salto = False
-                    elif saltos_extra > 0 and not ha_hecho_doble_salto:
-                        # Doble salto
-                        velocidad_y = -16
-                        estado_actual = "JUMP"
-                        frame_actual = 0
-                        saltos_extra -= 1
-                        ha_hecho_doble_salto = True
+                if evento.key == pygame.K_ESCAPE:
+                    juego_pausado = not juego_pausado
+                if not juego_pausado:
+                    if evento.key == pygame.K_SPACE:
+                        if personaje_y >= suelo_y:
+                            # Salto normal
+                            velocidad_y = -16 # [MODIFICAR AQUÍ] Fuerza del salto (número más negativo = salta más alto)
+                            estado_actual = "JUMP"
+                            frame_actual = 0
+                            ha_hecho_doble_salto = False
+                        elif saltos_extra > 0 and not ha_hecho_doble_salto:
+                            # Doble salto
+                            velocidad_y = -16
+                            estado_actual = "JUMP"
+                            frame_actual = 0
+                            saltos_extra -= 1
+                            ha_hecho_doble_salto = True
             elif estado_partida in ("GAME_OVER", "VICTORIA"):
                 if evento.key == pygame.K_r:
                     # Reiniciar variables para jugar de nuevo
                     estado_partida = "JUGANDO"
                     estado_actual = "RUN"
+                    tiempo_inicio_juego = pygame.time.get_ticks()
                     personaje_x = 100
                     personaje_y = suelo_y
                     velocidad_y = 0
                     spawn_enemigo()
                     en_peligro = False
                     vidas = 5
-                    distancia_restante = 10.0
+                    distancia_restante = 1.0
                     saltos_extra = 5
                     distancia_recorrida_salto = 0.0
                     ha_hecho_doble_salto = False
@@ -467,7 +481,9 @@ while juego_activo:
                 velocidad_y /= 2 
 
     # --- LÓGICA PRINCIPAL ---
-    if estado_partida in ("JUGANDO", "LLEGADA"):
+    if juego_pausado:
+        pass  # Congelar toda la lógica mientras está pausado
+    elif estado_partida in ("JUGANDO", "LLEGADA"):
         # Física
         velocidad_y += gravedad
         personaje_y += velocidad_y
@@ -480,7 +496,7 @@ while juego_activo:
                 estado_actual = "RUN"
                 frame_actual = 0
 
-    if estado_partida == "JUGANDO":
+    if not juego_pausado and estado_partida == "JUGANDO":
         dist_step = 0.03 / FPS
         distancia_restante -= dist_step
         if distancia_restante <= 0:
@@ -587,7 +603,7 @@ while juego_activo:
                 if vidas <= 0:
                     estado_partida = "GAME_OVER"
 
-    if estado_partida == "LLEGADA":
+    if not juego_pausado and estado_partida == "LLEGADA":
         # Jugador avanza solo hacia la casa (ya fija en CASA_X_FINAL)
         personaje_x += velocidad_base_enemigo * 0.4
         estado_actual = "RUN"
@@ -769,6 +785,50 @@ while juego_activo:
         pantalla_juego.blit(somb_pts, (x_pts + 1, y_txt + 1))
         pantalla_juego.blit(txt_km,   (x_km,  y_txt))
         pantalla_juego.blit(txt_pts,  (x_pts, y_txt))
+
+        # --- Hint: Presiona ESPACIO para saltar (aparece los primeros 5 segundos) ---
+        if estado_partida == "JUGANDO":
+            tiempo_hint_ms = 5000  # 5 segundos en total
+            fade_ms = 1000         # ultimo 1 segundo hace fade out
+            elapsed = pygame.time.get_ticks() - tiempo_inicio_juego
+            if elapsed < tiempo_hint_ms:
+                fuente_hint = pygame.font.Font("assets/sprites/Fish Fellas Assetpack/Fonts/PixelifySans-Bold.ttf", 16) if fuente_grande else pygame.font.SysFont("arial", 16, bold=True)
+                # Calcular alpha (fade out en el ultimo segundo)
+                if elapsed < tiempo_hint_ms - fade_ms:
+                    alpha_hint = 220
+                else:
+                    progreso_fade = (elapsed - (tiempo_hint_ms - fade_ms)) / fade_ms
+                    alpha_hint = int(220 * (1.0 - progreso_fade))
+                txt_hint = fuente_hint.render("Presiona ESPACIO para saltar", True, (255, 220, 0))
+                somb_hint = fuente_hint.render("Presiona ESPACIO para saltar", True, (80, 60, 0))
+                hint_x = ANCHO_PANTALLA // 2 - txt_hint.get_width() // 2
+                hint_y = ALTO_PANTALLA - 32
+                # Superficie con alpha para fade
+                sup_hint = pygame.Surface((txt_hint.get_width() + 2, txt_hint.get_height() + 2), pygame.SRCALPHA)
+                sup_hint.blit(somb_hint, (2, 2))
+                sup_hint.blit(txt_hint, (0, 0))
+                sup_hint.set_alpha(alpha_hint)
+                pantalla_juego.blit(sup_hint, (hint_x, hint_y))
+
+    # --- OVERLAY DE PAUSA ---
+    if juego_pausado and estado_partida == "JUGANDO":
+        overlay_pausa = pygame.Surface((ANCHO_PANTALLA, ALTO_PANTALLA), pygame.SRCALPHA)
+        overlay_pausa.fill((0, 0, 0, 150))
+        pantalla_juego.blit(overlay_pausa, (0, 0))
+        fuente_pausa_grande = pygame.font.Font("assets/sprites/Fish Fellas Assetpack/Fonts/PixelifySans-Bold.ttf", 52) if fuente_grande else pygame.font.SysFont("arial", 52, bold=True)
+        fuente_pausa_chica  = pygame.font.Font("assets/sprites/Fish Fellas Assetpack/Fonts/PixelifySans-Bold.ttf", 20) if fuente_grande else pygame.font.SysFont("arial", 20, bold=True)
+        # Titulo PAUSA
+        txt_pausa      = fuente_pausa_grande.render("PAUSA", True, (255, 220, 0))
+        somb_pausa     = fuente_pausa_grande.render("PAUSA", True, (80, 60, 0))
+        px = ANCHO_PANTALLA // 2 - txt_pausa.get_width() // 2
+        pantalla_juego.blit(somb_pausa, (px + 3, 163))
+        pantalla_juego.blit(txt_pausa,  (px,     160))
+        # Subtitulo
+        txt_cont   = fuente_pausa_chica.render("Presiona ESC para continuar", True, (220, 220, 220))
+        somb_cont  = fuente_pausa_chica.render("Presiona ESC para continuar", True, (40, 40, 40))
+        cx = ANCHO_PANTALLA // 2 - txt_cont.get_width() // 2
+        pantalla_juego.blit(somb_cont, (cx + 2, 232))
+        pantalla_juego.blit(txt_cont,  (cx,     230))
 
     if estado_partida == "MENU_PRINCIPAL":
         # Overlay semi-transparente oscuro para que el menu resalte sobre el fondo
